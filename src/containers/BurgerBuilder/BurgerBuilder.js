@@ -1,32 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Auxiliary from '../../hoc/Auxiliary';
 import Burger from '../../components/Burger/Burger';
 import BuildControls from '../../components/Burger/BuildControls/BuildControls';
 import Modal from '../../components/UI/Modal/Modal';
 import OrderSummary from '../../components/Burger/OrderSummary/OrderSummary';
-
-const INGREDIENT_PRICES = {
-  salad: 0.5,
-  cheese: 0.4,
-  meat: 1.3,
-  bacon: 0.7
-};
+import axios from '../../axios-orders';
+import withErrorHandler from '../../hoc/withErrorHandler';
+import { connect, useDispatch, useSelector } from 'react-redux';
+import {
+  changeIngredientQuantity,
+  initIngredients
+} from '../../store/actions/ingredients';
+import { purchaseInit } from '../../store/actions/orders';
+import Spinner from '../../components/UI/Spinner/Spinner';
 
 const BurgerBuilder = props => {
-  const [ingredients, setIngredients] = useState({
-    salad: 0,
-    bacon: 0,
-    cheese: 0,
-    meat: 0
-  });
-
-  const [price, setPrice] = useState(0);
-  const [purchaseable, setPurchaseable] = useState(price > 0);
   const [purchasing, setPurchasing] = useState(false);
 
-  const handlePurchase = () => setPurchasing(true);
+  const {
+    ingredients,
+    price,
+    purchaseable,
+    error,
+    isAuthenticated
+  } = useSelector(state => {
+    return {
+      ingredients: state.ing.ingredients,
+      price: state.ing.price,
+      purchaseable: state.ing.purchaseable,
+      error: state.ing.error,
+      isAuthenticated: !!state.auth.token
+    };
+  });
+
+  const dispatch = useDispatch();
+  const onInitIngredients = useCallback(() => dispatch(initIngredients()), [
+    dispatch
+  ]);
+  const onChangeIngredientQuantity = (type, ingQuantityChange) =>
+    dispatch(changeIngredientQuantity(type, ingQuantityChange));
+  const onInitPurchase = () => dispatch(purchaseInit());
+
+  useEffect(() => {
+    if (ingredients) {
+      return;
+    }
+
+    onInitIngredients();
+  }, [onInitIngredients, ingredients]);
+
+  if (error) {
+    return <p>Ingredients can't be loaded!</p>;
+  }
+
+  if (!ingredients) {
+    return <Spinner />;
+  }
+
+  const handlePurchase = () => {
+    if (!isAuthenticated) {
+      props.history.push('/auth');
+      return;
+    }
+
+    setPurchasing(true);
+  };
   const handlePurchaseCancel = () => setPurchasing(false);
-  const handlePurchaseContinue = () => alert('Geve me your money!');
+  const handlePurchaseContinue = () => {
+    onInitPurchase();
+    props.history.push({ pathname: `checkout` });
+  };
 
   const disabledInfo = Object.keys(ingredients).reduce((disabled, ingType) => {
     if (ingredients[ingType] <= 0) {
@@ -38,21 +81,6 @@ const BurgerBuilder = props => {
     return disabled;
   }, {});
 
-  const handleIngredientsChange = (type, ingQuantityChange) => {
-    if (ingredients[type] <= 0 && ingQuantityChange < 0) {
-      return;
-    }
-
-    const changedIngredients = { ...ingredients };
-    changedIngredients[type] += ingQuantityChange;
-    setIngredients(changedIngredients);
-
-    const newPrice = price + ingQuantityChange * INGREDIENT_PRICES[type];
-    setPrice(newPrice);
-
-    setPurchaseable(newPrice > 0);
-  };
-
   return (
     <Auxiliary>
       <Modal show={purchasing} modalClosed={handlePurchaseCancel}>
@@ -63,17 +91,17 @@ const BurgerBuilder = props => {
           purchaseContinued={handlePurchaseContinue}
         />
       </Modal>
-
       <Burger ingredients={ingredients} />
       <BuildControls
         price={price}
         purchaseable={purchaseable}
         disabled={disabledInfo}
         ordered={handlePurchase}
-        onChange={handleIngredientsChange}
+        isAuth={isAuthenticated}
+        onChange={onChangeIngredientQuantity}
       />
     </Auxiliary>
   );
 };
 
-export default BurgerBuilder;
+export default withErrorHandler(BurgerBuilder, axios);

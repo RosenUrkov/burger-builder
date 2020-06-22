@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import classes from './Modal.module.css';
 import Auxiliary from '../../../hoc/Auxiliary';
 import Backdrop from '../Backdrop/Backdrop';
 
 const Modal = props => {
+  useEffect(() => console.log('Render Modal!'));
+
   return (
     <Auxiliary>
       <Backdrop show={props.show} clicked={props.modalClosed} />
@@ -20,4 +22,9 @@ const Modal = props => {
   );
 };
 
-export default Modal;
+export default React.memo(
+  Modal,
+  (prevProps, nextProps) =>
+    nextProps.show === prevProps.show &&
+    nextProps.children === prevProps.children
+);
